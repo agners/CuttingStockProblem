@@ -127,12 +127,12 @@ void cutting_stock_branch_and_cut(order **orders, int order_count, double *dual_
     matrix_destroy(mat);
     glp_delete_prob(lp);
 }
+double **cutting_stock_compute_generate_patterns(order **orders, int order_count, 
+    int max_width, int mode, int *columns_matrix_count) {
+    double **columns_matrix, obj_value, *new_pattern, *dual_column;
+    int i, column_size, columns_matrix_number;
 
-double **cutting_stock_compute_best_patterns(order **orders, int order_count, int max_width, int *best_patterns_number) {
-    double **columns_matrix, obj_value, *new_pattern, *dual_column, **best_patterns;
-    int i, column_size, columns_matrix_number, temp_best_patterns_number;
-
-    columns_matrix = columns_matrix_compute(orders, order_count, max_width);
+    columns_matrix = columns_matrix_compute(orders, order_count, max_width, mode);
     column_size = order_count;
     columns_matrix_number = order_count;
 
@@ -143,10 +143,8 @@ double **cutting_stock_compute_best_patterns(order **orders, int order_count, in
         cutting_stock_branch_and_cut(orders, order_count, dual_column, column_size, max_width, &obj_value, new_pattern);
 
         /* Add the new pattern */
-        if (columns_matrix) {
+        if (columns_matrix && columns_matrix_number >= order_count) {
             columns_matrix = (double **)realloc(columns_matrix, (columns_matrix_number + 1) * sizeof(double *));
-        } else {
-            columns_matrix = (double **)malloc(sizeof(double *));
         }
         columns_matrix[columns_matrix_number] = new_pattern;
         columns_matrix_number++;
@@ -159,12 +157,26 @@ double **cutting_stock_compute_best_patterns(order **orders, int order_count, in
 
     if (columns_matrix_number == 0) {
         columns_matrix_destroy(columns_matrix, columns_matrix_number);
+        *columns_matrix_count = 0;
         return NULL;
     }
 
-    best_patterns = (double **)malloc(columns_matrix_number * sizeof(double *));
+    *columns_matrix_count = columns_matrix_number;
+
+    return columns_matrix;
+}
+
+double **cutting_stock_compute_best_patterns(order **orders, int order_count, int max_width, int *best_patterns_number) {
+    double **columns_matrix, **best_patterns;
+    int i, column_size, columns_matrix_count, temp_best_patterns_number;
+
+    column_size = order_count;
+
+    columns_matrix = cutting_stock_compute_generate_patterns(orders, order_count, max_width, 0, &columns_matrix_count);
+
+    best_patterns = (double **)malloc(columns_matrix_count * sizeof(double *));
     temp_best_patterns_number = 0;
-    for (i = 0; i < columns_matrix_number; i++) {
+    for (i = 0; i < columns_matrix_count; i++) {
         if (double_matrix_contains_array(best_patterns, temp_best_patterns_number, columns_matrix[i], column_size))
             continue;
 
@@ -172,9 +184,22 @@ double **cutting_stock_compute_best_patterns(order **orders, int order_count, in
         temp_best_patterns_number++;
     }
 
-    *best_patterns_number = temp_best_patterns_number;
+    free((void *)columns_matrix);
+
+    columns_matrix = cutting_stock_compute_generate_patterns(orders, order_count, max_width, 1, &columns_matrix_count);
+
+    best_patterns = (double **)realloc(best_patterns, (temp_best_patterns_number + columns_matrix_count) * sizeof(double *));
+    for (i = 0; i < columns_matrix_count; i++) {
+        if (double_matrix_contains_array(best_patterns, temp_best_patterns_number, columns_matrix[i], column_size))
+            continue;
+
+        best_patterns[temp_best_patterns_number] = columns_matrix[i];
+        temp_best_patterns_number++;
+    }
 
     free((void *)columns_matrix);
+
+    *best_patterns_number = temp_best_patterns_number;
 
     return best_patterns;
 }

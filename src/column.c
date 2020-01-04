@@ -67,7 +67,7 @@ void columns_matrix_destroy(double **columns_matrix, int column_count) {
     }
 }
 
-double **columns_matrix_compute(order **orders, int order_count, int max_width) {
+double **columns_matrix_compute(order **orders, int order_count, int max_width, int mode) {
     double **columns_matrix;
     int i;
 
@@ -81,7 +81,11 @@ double **columns_matrix_compute(order **orders, int order_count, int max_width) 
         }
 
         /* For each order width, create a column with only that width */
-        int count = max_width / orders[i]->width;
+        int count;
+        if (mode == 0)
+            count = max_width / orders[i]->width;
+        else
+            count = 1;
         if (count > orders[i]->demand)
             count = orders[i]->demand;
         columns_matrix[i] = column_create(order_count, count, i);
